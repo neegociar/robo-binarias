@@ -41,11 +41,11 @@ TIMEFRAME_SEGUNDOS = 300
 # ============================================
 # CHAVES DAS CORRETORAS (VIA VARIÁVEIS DE AMBIENTE)
 # ============================================
-BINANCE_API_KEY = 'TnryN2GXtAWFutlf5aIimGvPyqu95hjBJXTbwHNMiHeQr1YDFPiZ0EJJziDH6aUB'
-BINANCE_SECRET_KEY = 'gZzrhHqktzYeuBwj66Sv8KxS0mnqsF8dNhlUA6LL7rdkRlAiEQzhTGx88CkRcSAv'
+BINANCE_API_KEY = os.environ.get('BINANCE_API_KEY')
+BINANCE_SECRET_KEY = os.environ.get('BINANCE_SECRET_KEY')
 
-BYBIT_API_KEY = 'GCHEiD4GzE57AsNk64'
-BYBIT_API_SECRET = 'CaG3iU9Ek0GigrAzmpysBHjRyKZ3SdwVQamb'
+BYBIT_API_KEY = os.environ.get('BYBIT_API_KEY')
+BYBIT_API_SECRET = os.environ.get('BYBIT_API_SECRET')
 
 OKX_API_KEY = os.environ.get('OKX_API_KEY')
 OKX_SECRET_KEY = os.environ.get('OKX_SECRET_KEY')
