@@ -8,13 +8,22 @@ import numpy as np
 from collections import deque
 import os
 import json
-import winsound
+
+# ============================================
+# SUBSTITUIÇÃO DO WINSOUND (COMPATÍVEL COM LINUX)
+# ============================================
+try:
+    import winsound
+    SOUND_SUPORTADO = True
+except ImportError:
+    SOUND_SUPORTADO = False
+    print("ℹ️ Modo sem beep - executando em ambiente Linux/Cloud")
 
 # ============================================
 # CONFIGURAÇÕES TELEGRAM
 # ============================================
-TELEGRAM_TOKEN = '8207229215:AAGNJfXhQm2Xmqzv6XQ8pZ_8Ml-iaZl387Y'
-TELEGRAM_CHAT_ID = '5869218072'
+TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
 # ============================================
 # LISTA DE ATIVOS OTIMIZADA (BASEADO NO BACKTEST)
@@ -30,16 +39,16 @@ TIMEFRAME = '5m'
 TIMEFRAME_SEGUNDOS = 300
 
 # ============================================
-# CHAVES DAS CORRETORAS
+# CHAVES DAS CORRETORAS (VIA VARIÁVEIS DE AMBIENTE)
 # ============================================
-BINANCE_API_KEY = os.environ.get('TnryN2GXtAWFutlf5aIimGvPyqu95hjBJXTbwHNMiHeQr1YDFPiZ0EJJziDH6aUB')
-BINANCE_SECRET_KEY = os.environ.get('gZzrhHqktzYeuBwj66Sv8KxS0mnqsF8dNhlUA6LL7rdkRlAiEQzhTGx88CkRcSAv')
+BINANCE_API_KEY = os.environ.get('BINANCE_API_KEY')
+BINANCE_SECRET_KEY = os.environ.get('BINANCE_SECRET_KEY')
 
-BYBIT_API_KEY = os.environ.get('GCHEiD4GzE57AsNk64')
-BYBIT_API_SECRET = os.environ.get('CaG3iU9Ek0GigrAzmpysBHjRyKZ3SdwVQamb')
+BYBIT_API_KEY = os.environ.get('BYBIT_API_KEY')
+BYBIT_API_SECRET = os.environ.get('BYBIT_API_SECRET')
 
-OKX_API_KEY = os.environ.get('be79b780-70a2-45ac-a3b3-84e525741cec')
-OKX_SECRET_KEY = os.environ.get('F156705C3FE0BBEC2BD653305D46E301')
+OKX_API_KEY = os.environ.get('OKX_API_KEY')
+OKX_SECRET_KEY = os.environ.get('OKX_SECRET_KEY')
 
 # ============================================
 # ARQUIVOS DE ESTATÍSTICAS
@@ -647,8 +656,12 @@ class RoboBinariasOtimizado:
                         
                         enviar_telegram(msg)
                     
-                    winsound.Beep(1000, 300)
-                    winsound.Beep(1200, 300)
+                    # Som de alerta (compatível com Linux)
+                    if SOUND_SUPORTADO:
+                        winsound.Beep(1000, 300)
+                        winsound.Beep(1200, 300)
+                    else:
+                        print(f"{Cores.AMARELO}🔔 SINAL DETECTADO!{Cores.RESET}")
                     
                     self.dados[symbol]['sinal_enviado'] = True
                     self.dados[symbol]['sinal_pendente'] = {
