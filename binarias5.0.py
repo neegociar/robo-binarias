@@ -1,4 +1,4 @@
-﻿# robotesse_binarias_otimizado.py - ROBÔ OTIMIZADO COM SALVAMENTO AUTOMÁTICO
+﻿# robotesse_binarias_otimizado.py - ROBÔ OTIMIZADO COM PROXY/VPN
 import requests
 import time
 import threading
@@ -24,6 +24,43 @@ except ImportError:
 # ============================================
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
+
+# ============================================
+# CONFIGURAÇÃO DO PROXY (VPN)
+# ============================================
+# Lista de proxies gratuitos (testados em Maio 2026)
+# IMPORTANTE: Proxies gratuitos são instáveis. Se um falhar, tente outro.
+PROXY_LISTA = [
+    # Proxies dos EUA (podem ser bloqueados pela Binance)
+    # 'http://45.33.109.96:3128',  # Exemplo - NÃO FUNCIONA MAIS
+    # 'http://50.174.7.154:80',
+    
+    # Proxies da Europa (recomendados - menos bloqueados)
+    'http://185.199.99.105:3128',   # Alemanha
+    'http://193.25.253.66:3128',     # República Tcheca
+    'http://185.132.178.180:3128',   # Holanda
+    
+    # Proxies da Ásia
+    'http://47.254.85.78:3128',      # Singapura
+    'http://47.241.63.152:3128',     # Japão
+]
+
+def obter_proxy_funcionando():
+    """Testa proxies até encontrar um que funcione com a Binance"""
+    for proxy_url in PROXY_LISTA:
+        try:
+            print(f"🔍 Testando proxy: {proxy_url}")
+            test_url = "https://api.binance.com/api/v3/ping"
+            response = requests.get(test_url, proxies={'http': proxy_url, 'https': proxy_url}, timeout=10)
+            if response.status_code == 200:
+                print(f"✅ Proxy funcionando: {proxy_url}")
+                return proxy_url
+        except Exception as e:
+            print(f"❌ Proxy falhou: {proxy_url} - {str(e)[:50]}")
+            continue
+    
+    print("⚠️ Nenhum proxy gratuito funcionou. Tentando sem proxy...")
+    return None
 
 # ============================================
 # LISTA DE ATIVOS OTIMIZADA (BASEADO NO BACKTEST)
@@ -174,13 +211,14 @@ class OKXClient:
         return None, 0
 
 # ============================================
-# ROBÔ PRINCIPAL COM SALVAMENTO AUTOMÁTICO
+# ROBÔ PRINCIPAL COM PROXY
 # ============================================
 class RoboBinariasOtimizado:
     def __init__(self):
         self.binance = None
         self.bybit = None
         self.okx = None
+        self.proxy_url = None
         
         self.dados = {}
         for ativo in ATIVOS:
@@ -198,6 +236,15 @@ class RoboBinariasOtimizado:
         
         self.rodando = True
         self.sinal_mostrado = False
+        
+        # Tenta encontrar um proxy funcionando
+        print("🔍 Procurando proxy gratuito para a Binance...")
+        self.proxy_url = obter_proxy_funcionando()
+        if self.proxy_url:
+            self.proxies = {'http': self.proxy_url, 'https': self.proxy_url}
+        else:
+            self.proxies = None
+        
         self.carregar_estatisticas()
         self.carregar_historico()
 
@@ -282,15 +329,22 @@ class RoboBinariasOtimizado:
         print(f"{Cores.VERDE_NEGRITO}     CONECTANDO ÀS 3 CORRETORAS...{Cores.RESET}")
         print(f"{Cores.AZUL}{'='*60}{Cores.RESET}")
         
-        # Binance
+        # Binance com proxy
         try:
-            self.binance = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+            if self.proxies:
+                print(f"{Cores.AMARELO}🔄 Usando proxy: {self.proxy_url}{Cores.RESET}")
+                self.binance = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY, requests_params={'proxies': self.proxies})
+            else:
+                print(f"{Cores.AMARELO}⚠️ Sem proxy - tentando conexão direta{Cores.RESET}")
+                self.binance = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+            
             self.binance.ping()
             print(f"{Cores.VERDE}✅ Binance conectada{Cores.RESET}")
         except Exception as e:
             print(f"{Cores.VERMELHO}❌ Binance: {e}{Cores.RESET}")
+            print(f"{Cores.AMARELO}💡 Dica: Os proxies gratuitos podem estar offline. Tente novamente mais tarde ou configure um proxy pago.{Cores.RESET}")
         
-        # Bybit
+        # Bybit (não precisa de proxy normalmente)
         try:
             self.bybit = BybitClient(BYBIT_API_KEY, BYBIT_API_SECRET)
             oi, _ = self.bybit.obter_open_interest()
@@ -301,7 +355,7 @@ class RoboBinariasOtimizado:
         except Exception as e:
             print(f"{Cores.VERMELHO}❌ Bybit: {e}{Cores.RESET}")
         
-        # OKX
+        # OKX (não precisa de proxy normalmente)
         try:
             self.okx = OKXClient(OKX_API_KEY, OKX_SECRET_KEY)
             oi, _ = self.okx.obter_open_interest()
@@ -324,7 +378,12 @@ class RoboBinariasOtimizado:
                 '15m': Client.KLINE_INTERVAL_15MINUTE,
                 '1h': Client.KLINE_INTERVAL_1HOUR,
             }
-            klines = self.binance.get_klines(symbol=symbol, interval=interval_map[TIMEFRAME], limit=100)
+            
+            # Usa proxy se disponível
+            if self.proxies:
+                klines = self.binance.get_klines(symbol=symbol, interval=interval_map[TIMEFRAME], limit=100, requests_params={'proxies': self.proxies})
+            else:
+                klines = self.binance.get_klines(symbol=symbol, interval=interval_map[TIMEFRAME], limit=100)
             
             velas = []
             for k in klines:
@@ -336,14 +395,19 @@ class RoboBinariasOtimizado:
                     'minima': float(k[3]),
                 })
             return velas
-        except:
+        except Exception as e:
+            print(f"{Cores.VERMELHO}Erro ao obter velas {symbol}: {e}{Cores.RESET}")
             return None
 
     def obter_order_book(self, symbol):
         if not self.binance:
             return None
         try:
-            depth = self.binance.get_order_book(symbol=symbol, limit=20)
+            if self.proxies:
+                depth = self.binance.get_order_book(symbol=symbol, limit=20, requests_params={'proxies': self.proxies})
+            else:
+                depth = self.binance.get_order_book(symbol=symbol, limit=20)
+            
             bid_volume = sum(float(bid[1]) for bid in depth['bids'])
             ask_volume = sum(float(ask[1]) for ask in depth['asks'])
             total = bid_volume + ask_volume
@@ -510,6 +574,8 @@ class RoboBinariasOtimizado:
                 self.dados[symbol]['velas'] = deque(velas, maxlen=100)
                 self.dados[symbol]['conectado'] = True
                 self.dados[symbol]['preco_atual'] = velas[-1]['fechamento']
+            else:
+                self.dados[symbol]['conectado'] = False
 
     def validar_sinal(self, symbol, sinal, preco_entrada, nome, evidencias, confianca):
         """Valida o sinal APÓS 5 minutos e SALVA o resultado"""
@@ -692,6 +758,10 @@ class RoboBinariasOtimizado:
         print(f"{Cores.CIANO}⏰ Envio: faltando 15s | Validação: após 5 minutos{Cores.RESET}")
         print(f"{Cores.CIANO}💾 Salvamento automático: {ARQUIVO_ESTATISTICAS} e {ARQUIVO_HISTORICO}{Cores.RESET}")
         print(f"{Cores.CIANO}📊 XRP e DOGE REMOVIDOS (taxa <40% no backtest){Cores.RESET}")
+        if self.proxy_url:
+            print(f"{Cores.VERDE}🔒 Proxy ativo: {self.proxy_url}{Cores.RESET}")
+        else:
+            print(f"{Cores.VERMELHO}⚠️ Nenhum proxy ativo - Binance pode falhar{Cores.RESET}")
         print(f"{Cores.AZUL}{'-'*85}{Cores.RESET}")
         
         print(f"{Cores.BRANCO}{'Ativo':<12} {'Preço':>14} {'RSI':>6} {'Sinal':>10} {'Status':>14} {'Acertos':>10}{Cores.RESET}")
@@ -744,6 +814,8 @@ class RoboBinariasOtimizado:
                     acertos_str = f"{taxa_cor}{stats['acertos']}/{stats['erros']}{Cores.RESET}" if total > 0 else f"{Cores.CINZA}0/0{Cores.RESET}"
                     
                     print(f"{ativo['nome']:<12} {preco_str}   {rsi_cor}{rsi:>3.0f}{Cores.RESET}   {proximo:<8} {status}   {acertos_str:>12}")
+            else:
+                print(f"{ativo['nome']:<12} {Cores.CINZA}AGUARDANDO DADOS...{Cores.RESET}")
         
         print(f"{Cores.AZUL}{'-'*85}{Cores.RESET}")
         
@@ -855,7 +927,7 @@ class RoboBinariasOtimizado:
         self.atualizar_dados()
         
         if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
-            enviar_telegram(f"🤖 ROBÔ OTIMIZADO INICIADO\n📊 Ativos: BTC, ETH, BNB, SOL\n⏱️ Timeframe: {TIMEFRAME}\n⏰ Envio: faltando 15s\n💾 Salvamento automático ativado")
+            enviar_telegram(f"🤖 ROBÔ OTIMIZADO INICIADO\n📊 Ativos: BTC, ETH, BNB, SOL\n⏱️ Timeframe: {TIMEFRAME}\n⏰ Envio: faltando 15s\n🔒 Proxy: {'Ativo' if self.proxy_url else 'Desativado'}\n💾 Salvamento automático ativado")
             print(f"{Cores.VERDE}✅ Telegram configurado!{Cores.RESET}")
         
         print(f"{Cores.VERDE_NEGRITO}🚀 Robô otimizado operacional!{Cores.RESET}")
