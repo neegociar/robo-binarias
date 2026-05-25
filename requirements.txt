@@ -1,4 +1,4 @@
 requests==2.31.0
-numpy>=1.26.0,<2.0          # ✅ compatível com Python 3.12
+numpy>=1.26.0,<2.0
 python-binance==1.0.17
 websocket-client==1.6.1
